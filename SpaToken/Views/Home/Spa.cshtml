@@ -1,0 +1,205 @@
+﻿
+@{
+    ViewData["Title"] = "Spa";
+}
+
+<h1>Spa</h1>
+
+<div class="container">
+    <div class="row">
+        <div class="col-md-6">
+            <h2>Üye Kayıt Formu</h2>
+            <form>
+                <div class="form-group">
+                    <input type="text" class="form-control" id="Name" placeholder="İsminiz" value="Mertcan" />
+                </div>
+                <div class="form-group">
+                    <input type="text" class="form-control" id="Lastname" placeholder="Soyisminiz" value="Elitaş" />
+                </div>
+
+                <div class="form-group">
+                    <input type="email" class="form-control" id="Email" placeholder="Emailiniz" value="mertcanelitas2@@gmail.com" />
+                </div>
+
+                <div class="form-group">
+                    <input type="password" class="form-control" id="Password" placeholder="Şifreniz" value="12345" />
+                </div>
+
+                <button type="button" id="btnSave" onclick="postForm()" class="btn btn-primary">Kaydet</button>
+            </form>
+        </div>
+        <div class="col-md-6">
+            <div id="userDiv">
+
+            </div>
+            <h2>Üye Giriş Formu</h2>
+            <div id="loginDiv" style="display:none">
+                <form>
+                    <div class="form-group">
+                        <input type="text" class="form-control" id="LoginEmail" placeholder="Email Adresiniz" value="mertcanelitas2@@gmail.com" />
+                    </div>
+                    <div class="form-group">
+                        <input type="password" class="form-control" id="LoginPassword" placeholder="Şifreniz" value="12345" />
+                    </div>
+
+                    <button type="button" id="btnLoginSave" onclick="postLoginForm()" class="btn btn-primary">Giriş</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+@section Scripts{
+    <script>
+
+        $(document).ready(function () {
+            getUserData();
+            showProduct();
+        });
+
+        function postForm() {
+            let name = $("#Name").val();
+            let surname = $("#Lastname").val();
+            let email = $("#Email").val();
+            let password = $("#Password").val();
+
+            let userResource = {
+                Name: name,
+                Password: password,
+                Email: email,
+                Surname: surname
+            };
+
+            $.ajax({
+                type: "POST",
+                url: "https://localhost:44348/api/User/AddUser",
+                data: JSON.stringify(userResource),
+                contentType: "application/json",
+                dataType: "json",
+                success: function (response) {
+                    console.table(response);
+                },
+                error: function (err) {
+                    console.log(err);
+                }
+            })
+        }
+        function postLoginForm() {
+            let email = $("#LoginEmail").val();
+            let password = $("#LoginPassword").val();
+
+            let loginResource = {
+                Email: email,
+                Password: password
+            }
+
+            $.ajax({
+                type: "POST",
+                url: "https://localhost:44348/api/Login/AccessToken",
+                data: JSON.stringify(loginResource),
+                contentType: "application/json",
+                dataType: "json",
+                success: function (response) {
+                    console.table(response);
+
+                    localStorage.setItem("token", response.token);
+                    localStorage.setItem("refreshToken", response.refreshToken);
+
+                    getUserData();
+                },
+                error: function (err) {
+                    console.log(err);
+                }
+            })
+
+        }
+        function getUserData() {
+            let accessToken = localStorage.getItem("token");
+
+            $.ajax({
+                type: "GET",
+                url: "https://localhost:44348/api/User/GetUser",
+                async: false,
+                crossDomain: true,
+                contentType: "application/json",
+                dataType: "json",
+                beforeSend: function (xhr) {
+                    xhr.setRequestHeader("Authorization", "Bearer " + accessToken);
+                },
+                statusCode: {
+                    401: function () {
+                        console.log("401 Aldık");
+                        getUserDataRefreshToken();
+                    }
+                },
+                success: function (data) {
+                    $("#loginDiv").hide();
+
+                    $("#userDiv").show().html("").append("<table class='table'><tr><th>Id</th><th>First Name</th><th>Lastname</th><td>Email</td></tr><tr><td>" + data.id + "</td><td>" + data.name + "</td><td>" + data.surname + "</td><td>" + data.email + "</td></tr></table>");
+                },
+                error: function (err) {
+
+                }
+            })
+        }
+        function getUserDataRefreshToken() {
+            let refreshToken = localStorage.getItem("refreshToken");
+
+            $.ajax({
+                type: "POST",
+                url: "https://localhost:44348/api/Login/RefreshToken",
+                async: false,
+                crossDomain: true,
+                data: JSON.stringify({ RefreshToken: refreshToken }),
+                contentType: "application/json",
+                dataType: "json",
+                success: function (response) {
+                    console.table(response);
+
+                    localStorage.setItem("token", response.token);
+                    localStorage.setItem("refreshToken", response.refreshToken);
+
+                    getUserData();
+                },
+                error: function (err) {
+                    console.log(err);
+                    $("#loginDiv").show();
+
+                    $("#userDiv").hide();
+                },
+                statusCode: {
+                    401: function () { }
+                }
+            })
+        }
+        function showProduct() {
+            let token = localStorage.getItem("token");
+
+            $.ajax({
+                type: "GET",
+                crossDomain: true,
+                url: "https://localhost:44348/api/Product/GetList",
+                contentType: "application/json",
+                beforeSend: function (xhr) {
+                    xhr.setRequestHeader("Authorization", "Bearer " + accessToken);
+                },
+                dataType: "json",
+                success: function (products) {
+                    let table = "<table class='table table-bordered'><tr><th>Id</th><th>İsim</th><th>Fiyat</th><th>Kategori</th></tr>";
+
+
+                    $.each(products, (key, value) => {
+                        table += "<tr><td>" + val.id + "</td><td>" + val.name + "</td><td>" + val.category + "</td></tr>";
+                    })
+
+                    table += "</table>";
+
+                    $("#productDiv").html(table);
+                },
+                error: function (error) {
+                    $("#productDiv").html("token geçersiz olduğu için ürünler listelenemedi.");
+                }
+            })
+        }
+
+    </script>
+}
